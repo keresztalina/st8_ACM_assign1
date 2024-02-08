@@ -1,0 +1,182 @@
+---
+title: "Assignment1_Alina"
+author: "Alina Kereszt"
+date: "2024-02-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# install packages if needed
+install.packages("tidyverse")
+```
+
+```{r}
+# load packages
+library(tidyverse)
+```
+
+
+```{r}
+# SIMPLE AGENT WITH BIAS
+# build function for agent
+RandomAgent_f <- function(bias){
+  choice <- rbinom(1, 1, bias)
+  return(choice)
+}
+
+# setup rate and trial number
+rate <- 0.5
+trials <- 120
+
+# empty vector to log choices
+RandomChoice <- rep(NA, trials)
+
+# make choices
+for (t in seq(trials)){
+  RandomChoice[t] <- RandomAgent_f(rate)
+}
+
+# turn into tibble
+d1 <- tibble(trial = seq(trials),
+             choice = RandomChoice)
+
+d1
+```
+
+```{r}
+# WStay LShift AGENT (WHICH PLAYS MATCHER AGAINST RANDOM AGENT)
+# build function for agent
+WSLSAgent_f <- function(prevChoice, Feedback){
+  
+  if (Feedback == 1){
+    choice = prevChoice
+  } else if (Feedback == 0){
+    choice = 1-prevChoice
+  }
+  
+  return(choice)
+}
+
+# empty vectors for agents
+Self <- rep(NA, trials)
+Other <- rep(NA, trials)
+
+# other agent's choices
+for (t in seq(trials)){
+  Other[t] <- RandomAgent_f(rate)
+}
+
+# first choice is random...
+Self[1] <- RandomAgent_f(0.5)
+
+# all other choices
+for (i in 2:trials){
+  
+  # get feedback
+  if (Self[i-1] == Other[i-1]){
+    Feedback = 1
+  } else {Feedback = 0}
+  
+  # make decision
+  Self[i] <- WSLSAgent_f(Self[i-1], 
+                         Feedback)
+}
+
+# turn into tibble
+d2 <- tibble(Self,
+             Other,
+             trial = seq(trials),
+             Feedback = as.numeric(Self==Other))
+
+d2
+```
+
+```{r}
+# WStay LShift AGENT (WHICH PLAYS AGAINST RANDOM AGENT)
+# build function for agent
+AsymWSLSAgent_f <- function(prevChoice, Feedback, winProb, lossProb){
+  
+  if (Feedback == 1){
+    
+    randomness <- rbinom(1, 1, winProb)
+    # stay with choice agent would initially have made
+    if (randomness == 1){
+      choice = prevChoice 
+    # randomly shift
+    } else if (randomness == 0){
+      choice = 1-prevChoice
+    }
+      
+  } else if (Feedback == 0){
+    
+    randomness <- rbinom(1, 1, lossProb)
+    # stay with choice agent would initially have made
+    if (randomness == 1){
+      choice = 1-prevChoice
+    # randomly shift
+    } else if (randomness == 0){
+      choice = prevChoice
+    }
+  }
+  
+  return(choice)
+}
+
+# empty vectors for agents
+Self2 <- rep(NA, trials)
+Other2 <- rep(NA, trials)
+Feedback2 <- rep(NA, trials)
+
+# other agent's choices
+for (t in seq(trials)){
+  Other2[t] <- RandomAgent_f(rate)
+}
+
+# first choice is random...
+Self[1] <- RandomAgent_f(0.5)
+
+# all other choices
+for (i in 2:trials){
+  
+  # get feedback
+  if (Self[i-1] == Other[i-1]){
+    Feedback = 1
+  } else {Feedback = 0}
+  
+  # register feedback
+  Feedback2[i] <- Feedback
+  
+  # make decision
+  Self[i] <- AsymWSLSAgent_f(Self[i-1], 
+                         Feedback,
+                         0.9,
+                         0.7)
+}
+
+# turn into tibble
+d3 <- tibble(Self,
+             Other,
+             trial = seq(trials),
+             Feedback = Feedback2)
+
+d3
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
