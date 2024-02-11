@@ -5,7 +5,7 @@ date: "2024-02-08"
 output: pdf_document
 ---
 ```{r}
-pacman::p_load("tidyverse")
+pacman::p_load("tidyverse", "hesim")
 ```
 
 Creating agents
@@ -40,29 +40,15 @@ WSLSAgent_f <- function(prevChoice, Feedback){
 }
 
 
-rl_agent <- function(prevChoice, Feedback, alpha){
-  expected_value = expected_value[i-1] + alpha * (Feedback[i-1]- expected_value[i-1])
-  
-  probability = exp(expected_value)
-  
-  softmax = probability/sum(probility) #this needs to be fixed because its the sum of probabilities of all choices 
-  
-  choice = rcat(1, softmax)
-  
-  return(choice)
-}
+
+
+
 
 rl_Agentresults <- rl_agent(1, 1)
 
 
 # Against a random agent
 
-Self <- rep(NA, trials)
-Other <- rep(NA, trials)
-
-Self[1] <- RandomAgent_f(1, 0.5)
-Other <- RandomAgent_f(seq(trials), rate)
-  
 
 for (i in 2:trials) {
   if (Self[i - 1] == Other[i - 1]) {
@@ -71,7 +57,6 @@ for (i in 2:trials) {
   Self[i] <- WSLSAgent_f(Self[i - 1], Feedback)
 }
 
-sum(Self == Other)
 ```
 
 ```{r}
@@ -80,6 +65,62 @@ sum(Self == Other)
 rl_agent <- function(prevchoice, feedback, rate){
   
 }
+
+ev <- function(feedback, alpha, expected_value){
+  expected_value = expected_value + alpha * (feedback - expected_value)
+  
+  return(expected_value)
+}
+
+ev_df <- array(NA,c(trials,2))
+probability <- array(NA, c(trials, 2))
+ev_df[1,] <- rep(0.5)
+
+probability[1,] <- rep(0.5)
+
+Self <- rep(NA, trials)
+Other <- rep(NA, trials)
+
+Self[1] <- RandomAgent_f(1, 0.5)
+Other <- RandomAgent_f(seq(trials), rate)
+alpha = 1
+
+for (t in 2:trials){
+  
+  for (d in 1:2){
+    ifelse(d==1, 
+      if (Self[t - 1] == Other[t - 1]) {
+      feedback = 1
+      } else {feedback = 0}, if (Self[t - 1] == Other[t - 1]) {
+      feedback = 0
+      } else {feedback = 1})
+    
+  
+    ev_df[t,d] <- ev(feedback, alpha, ev_df[t-1,d])
+  }
+  for (d in 1:2){
+    probability[t,d] = exp(ev_df[t,d])/(exp(ev_df[t,1])+ exp(ev_df[t,2]))
+  }
+    
+  Self[t] <- rbinom(1, 1, probability[t,])
+}
+
+#Self = 1, is v1, self = 0 is v2
+```
+
+```{r}
+#plotting
+df <- tibble(Self, Other, trial = seq(trials),Feedback = as.numeric(Self == Other))
+ggplot(df) + theme_classic() +
+  geom_line(color = "red", aes(trial, Self)) +
+  geom_line(color = "blue", aes(trial, Other))
+
+df$cumulativerateSelf <- cumsum(df$Feedback) / seq_along(df$Feedback)
+df$cumulativerateOther <- cumsum(1 - df$Feedback) / seq_along(df$Feedback)
+
+ggplot(df) + theme_classic() +
+  geom_line(color = "red", aes(trial, cumulativerateSelf)) +
+  geom_line(color = "blue", aes(trial, cumulativerateOther))
 ```
 
 
