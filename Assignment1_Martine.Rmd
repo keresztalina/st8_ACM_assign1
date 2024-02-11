@@ -4,27 +4,82 @@ author: "Martine Lind Jensen"
 date: "2024-02-08"
 output: pdf_document
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r}
+pacman::p_load("tidyverse")
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+Creating agents
+```{r}
+trials <- 100
 ```
 
-## Including Plots
+```{r}
+rate <- 0.8
+# now as a function
+RandomAgent_f <- function(input, rate){
+  n <- length(input)
+  choice <- rbinom(n, 1, rate)
+  return(choice)
+}
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+input <- rep(1,trials) # it doesn't matter, it's not taken into account
+choice <- RandomAgent_f(input, rate)
+d3 <- tibble(trial = seq(trials), choice)
+ggplot(d3, aes(trial, choice)) + geom_line() + theme_classic()
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+# as a function
+WSLSAgent_f <- function(prevChoice, Feedback){
+  if (Feedback == 1) {
+    choice = prevChoice
+  } else if (Feedback == 0) {
+      choice = 1 - prevChoice
+      }
+  return(choice)
+}
+
+
+rl_agent <- function(prevChoice, Feedback, alpha){
+  expected_value = expected_value[i-1] + alpha * (Feedback[i-1]- expected_value[i-1])
+  
+  probability = exp(expected_value)
+  
+  softmax = probability/sum(probility) #this needs to be fixed because its the sum of probabilities of all choices 
+  
+  choice = rcat(1, softmax)
+  
+  return(choice)
+}
+
+rl_Agentresults <- rl_agent(1, 1)
+
+
+# Against a random agent
+
+Self <- rep(NA, trials)
+Other <- rep(NA, trials)
+
+Self[1] <- RandomAgent_f(1, 0.5)
+Other <- RandomAgent_f(seq(trials), rate)
+  
+
+for (i in 2:trials) {
+  if (Self[i - 1] == Other[i - 1]) {
+    Feedback = 1
+  } else {Feedback = 0}
+  Self[i] <- WSLSAgent_f(Self[i - 1], Feedback)
+}
+
+sum(Self == Other)
+```
+
+```{r}
+#reinforcement learning agent 
+
+rl_agent <- function(prevchoice, feedback, rate){
+  
+}
+```
+
+
