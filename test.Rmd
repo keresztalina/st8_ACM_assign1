@@ -1,0 +1,67 @@
+---
+title: "test"
+author: "Alina Kereszt"
+date: "2024-02-13"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+trials <- 120
+```
+
+```{r}
+RandomAgent_f <- function(bias){
+  choice <- rbinom(1, 1, bias)
+  return(choice)
+}
+```
+
+```{r}
+RLAgent_f <- function(feedback, alpha, prev_ev_1){
+  
+  ev <- function(feedback, alpha, expected_value){
+    ev_update = expected_value + alpha * (feedback - expected_value)
+    return(ev_update)
+  }
+  
+  new_ev_1 <- ev(feedback, alpha, prev_ev_1)
+  new_ev_2 <- 1 - new_ev_1
+  probability <- exp(new_ev_1)/(exp(new_ev_1)+ exp(new_ev_2))
+  
+  choice <- rbinom(1, 1, probability)
+  return(choice)
+}
+```
+
+```{r}
+#Creating arrays too populate and choosing first values in random
+ev_df <- array(NA, c(trials, 2)) #expected value df (actually array)
+probability <- c() #Probability for softmax function
+
+ev_df[1,] <- rep(0.5)
+
+feedback <- 1
+alpha <- 0.3
+
+RLAgent_f(feedback, alpha, ev_df[1,1])
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

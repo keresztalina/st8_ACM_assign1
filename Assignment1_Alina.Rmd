@@ -167,7 +167,57 @@ d3
 ```
 
 ```{r}
+#Reinforcement learning agent 
+trials <- 120
 
+#Making a function for expected value based on RL 
+  #takes in feedback(reward), learning rate(alpha), and the previous expected value to update a new expected value for the next trial
+
+ev <- function(feedback, alpha, expected_value){
+  ev_update = expected_value + alpha * (feedback - expected_value)
+  
+  return(ev_update)
+}
+
+#Creating arrays too populate and choosing first values in random
+ev_df <- array(NA, c(trials, 2)) #expected value df (actually array)
+probability <- array(NA, c(trials, 2)) #Probability for softmax function
+
+ev_df[1,] <- rep(0.5)
+probability[1,] <- rep(0.5)
+
+#Players choices 
+Self <- rep(NA, trials)
+Other <- rep(NA, trials)
+
+Self[1] <- rbinom(1, 1, 0.5) #Randomizing first choice for self  
+
+Other[1] <- rbinom(1, 1, 0.5) 
+
+#Setting learning rate 
+alpha = 0.3
+
+for (t in 2:trials){
+  
+  for (d in 1:2){
+    ifelse(d==1, 
+      if (Self[t - 1] == Other[t - 1]) {
+      feedback = 1
+      } else {feedback = 0}, if (Self[t - 1] == Other[t - 1]) {
+      feedback = 0
+      } else {feedback = 1})
+    
+  
+    ev_df[t,d] <- ev(feedback, alpha, ev_df[t-1,d])
+  }
+  for (d in 1:2){
+    probability[t,d] = exp(ev_df[t,d])/(exp(ev_df[t,1])+ exp(ev_df[t,2]))
+  }
+    
+  Self[t] <- rbinom(1, 1, probability[t,])
+}
+
+#Self = 1, is v1, self = 0 is v2
 ```
 
 
