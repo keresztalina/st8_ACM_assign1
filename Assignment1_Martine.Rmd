@@ -50,10 +50,10 @@ Other <- rep(NA, trials)
 
 Self[1] <- rbinom(1, 1, 0.5) #Randomizing first choice for self  
 
-Other <- RandomAgent_f(seq(trials), rate)
+Other[1] <- rbinom(1, 1, 0.5) 
 
 #Setting learning rate 
-alpha = 1
+alpha = 0.3
 
 for (t in 2:trials){
   
@@ -186,7 +186,15 @@ for (t in 2:trials){
     
   Self[t] <- rbinom(1, 1, probability[t,])
   
-  Other[t] <- WSLSAgent_f(Other[t - 1], Feedback)
+    # get feedback
+  if (Self[t-1] == Other[t-1]){
+    Feedback = 1
+  } else {Feedback = 0}
+  
+  # register feedback
+  Feedback2[t] <- Feedback
+  
+  Other[t] <- AsymWSLSAgent_f(Other[t - 1], Feedback2)
 }
 ```
 
