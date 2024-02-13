@@ -4,82 +4,189 @@ author: "Martine Lind Jensen"
 date: "2024-02-08"
 output: pdf_document
 ---
-```{r}
-pacman::p_load("tidyverse")
+```{r loading libraries}
+pacman::p_load("tidyverse", "hesim")
 ```
 
-Creating agents
-```{r}
-trials <- 100
+```{r Setting variables}
+trials <- 120
 ```
 
-```{r}
-rate <- 0.8
+```{r random agent from Riccardo to build models against}
+
+rate <- 0.5
+
 # now as a function
 RandomAgent_f <- function(input, rate){
   n <- length(input)
   choice <- rbinom(n, 1, rate)
   return(choice)
 }
-
-input <- rep(1,trials) # it doesn't matter, it's not taken into account
-choice <- RandomAgent_f(input, rate)
-d3 <- tibble(trial = seq(trials), choice)
-ggplot(d3, aes(trial, choice)) + geom_line() + theme_classic()
 ```
 
-```{r}
-# as a function
-WSLSAgent_f <- function(prevChoice, Feedback){
-  if (Feedback == 1) {
-    choice = prevChoice
-  } else if (Feedback == 0) {
-      choice = 1 - prevChoice
-      }
-  return(choice)
+
+```{r RL agent playing against randoma agent}
+#Reinforcement learning agent 
+
+#Making a function for expected value based on RL 
+  #takes in feedback(reward), learning rate(alpha), and the previous expected value to update a new expected value for the next trial
+
+ev <- function(feedback, alpha, expected_value){
+  ev_update = expected_value + alpha * (feedback - expected_value)
+  
+  return(ev_update)
 }
 
+#Creating arrays too populate and choosing first values in random
+ev_df <- array(NA,c(trials,2)) #expected value df (actually array)
+probability <- array(NA, c(trials, 2)) #Probability for softmax function
 
-rl_agent <- function(prevChoice, Feedback, alpha){
-  expected_value = expected_value[i-1] + alpha * (Feedback[i-1]- expected_value[i-1])
-  
-  probability = exp(expected_value)
-  
-  softmax = probability/sum(probility) #this needs to be fixed because its the sum of probabilities of all choices 
-  
-  choice = rcat(1, softmax)
-  
-  return(choice)
-}
+ev_df[1,] <- rep(0.5)
+probability[1,] <- rep(0.5)
 
-rl_Agentresults <- rl_agent(1, 1)
-
-
-# Against a random agent
-
+#Players choices 
 Self <- rep(NA, trials)
 Other <- rep(NA, trials)
 
-Self[1] <- RandomAgent_f(1, 0.5)
-Other <- RandomAgent_f(seq(trials), rate)
-  
+Self[1] <- rbinom(1, 1, 0.5) #Randomizing first choice for self  
 
-for (i in 2:trials) {
-  if (Self[i - 1] == Other[i - 1]) {
+Other <- RandomAgent_f(seq(trials), rate)
+
+#Setting learning rate 
+alpha = 1
+
+for (t in 2:trials){
+  
+  for (d in 1:2){
+    ifelse(d==1, 
+      if (Self[t - 1] == Other[t - 1]) {
+      feedback = 1
+      } else {feedback = 0}, if (Self[t - 1] == Other[t - 1]) {
+      feedback = 0
+      } else {feedback = 1})
+    
+  
+    ev_df[t,d] <- ev(feedback, alpha, ev_df[t-1,d])
+  }
+  for (d in 1:2){
+    probability[t,d] = exp(ev_df[t,d])/(exp(ev_df[t,1])+ exp(ev_df[t,2]))
+  }
+    
+  Self[t] <- rbinom(1, 1, probability[t,])
+}
+
+#Self = 1, is v1, self = 0 is v2
+```
+
+```{r plotting for RL model}
+#plotting
+df <- tibble(Self, Other, trial = seq(trials),Feedback = as.numeric(Self == Other))
+ggplot(df) + theme_classic() +
+  geom_line(color = "red", aes(trial, Self)) +
+  geom_line(color = "blue", aes(trial, Other))
+
+df$cumulativerateSelf <- cumsum(df$Feedback) / seq_along(df$Feedback)
+df$cumulativerateOther <- cumsum(1 - df$Feedback) / seq_along(df$Feedback)
+
+ggplot(df) + theme_classic() +
+  geom_line(color = "red", aes(trial, cumulativerateSelf)) +
+  geom_line(color = "blue", aes(trial, cumulativerateOther))
+```
+
+
+```{r Asym WSLS agent}
+# Building function for asymmetric win stay loose shift agent by including probabilities for winning and loosing
+
+AsymWSLSAgent_f <- function(prevChoice, Feedback, winProb, lossProb){
+  
+  if (Feedback == 1){
+    
+    randomness <- rbinom(1, 1, winProb)
+    # stay with choice agent would initially have made
+    if (randomness == 1){
+      choice = prevChoice 
+    # randomly shift
+    } else if (randomness == 0){
+      choice = 1-prevChoice
+    }
+      
+  } else if (Feedback == 0){
+    
+    randomness <- rbinom(1, 1, lossProb)
+    # stay with choice agent would initially have made
+    if (randomness == 1){
+      choice = 1-prevChoice
+    # randomly shift
+    } else if (randomness == 0){
+      choice = prevChoice
+    }
+  }
+  
+  return(choice)
+}
+
+# empty vectors for agents
+Self2 <- rep(NA, trials)
+Other2 <- rep(NA, trials)
+Feedback2 <- rep(NA, trials)
+
+# other agent's choices
+for (t in seq(trials)){
+  Other2[t] <- RandomAgent_f(rate)
+}
+
+# first choice is random...
+Self[1] <- RandomAgent_f(0.5)
+
+# all other choices
+for (i in 2:trials){
+  
+  # get feedback
+  if (Self[i-1] == Other[i-1]){
     Feedback = 1
   } else {Feedback = 0}
-  Self[i] <- WSLSAgent_f(Self[i - 1], Feedback)
-}
-
-sum(Self == Other)
-```
-
-```{r}
-#reinforcement learning agent 
-
-rl_agent <- function(prevchoice, feedback, rate){
   
+  # register feedback
+  Feedback2[i] <- Feedback
+  
+  # make decision
+  Self[i] <- AsymWSLSAgent_f(Self[i-1], 
+                         Feedback,
+                         0.9,
+                         0.7)
 }
+
+# turn into tibble
+d3 <- tibble(Self,
+             Other,
+             trial = seq(trials),
+             Feedback = Feedback2)
+
+d3
 ```
 
+Playing against eachother
+```{r RL against asymWSLS}
+for (t in 2:trials){
+  
+  for (d in 1:2){
+    ifelse(d==1, 
+      if (Self[t - 1] == Other[t - 1]) {
+      feedback = 1
+      } else {feedback = 0}, if (Self[t - 1] == Other[t - 1]) {
+      feedback = 0
+      } else {feedback = 1})
+    
+  
+    ev_df[t,d] <- ev(feedback, alpha, ev_df[t-1,d])
+  }
+  for (d in 1:2){
+    probability[t,d] = exp(ev_df[t,d])/(exp(ev_df[t,1])+ exp(ev_df[t,2]))
+  }
+    
+  Self[t] <- rbinom(1, 1, probability[t,])
+  
+  Other[t] <- WSLSAgent_f(Other[t - 1], Feedback)
+}
+```
 
