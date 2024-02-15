@@ -38,8 +38,12 @@ ev <- function(feedback, alpha, expected_value){
 }
 
 #Creating arrays too populate and choosing first values in random
-ev_df <- array(NA,c(trials,2)) #expected value df (actually array)
-probability <- array(NA, c(trials, 2)) #Probability for softmax function
+#ev_df <- array(NA,c(trials,2)) #expected value df (actually array)
+#probability <- array(NA, c(trials, 2)) #Probability for softmax function
+
+#Creating lists to populate 
+ev <- rep(NA, trials)
+p <- rep(NA, trials)
 
 ev_df[1,] <- rep(0.5)
 probability[1,] <- rep(0.5)
@@ -53,7 +57,7 @@ Self[1] <- rbinom(1, 1, 0.5) #Randomizing first choice for self
 Other[1] <- rbinom(1, 1, 0.5) 
 
 #Setting learning rate 
-alpha = 0.3
+alpha = 0.3 #We try learning rates (0.3, 0.5, 1)
 
 for (t in 2:trials){
   
@@ -76,6 +80,72 @@ for (t in 2:trials){
 }
 
 #Self = 1, is v1, self = 0 is v2
+```
+
+Cleaning up RL function 
+```{r RL agent playing against random agent}
+#Reinforcement learning agent 
+
+#Making a function for expected value based on RL 
+  #takes in feedback(reward), learning rate(alpha), and the previous expected value to update a new expected value for the next trial
+
+ev <- function(prevChoice, feedback, alpha, prev_ev){
+  
+  if (prevChoice == 1){ev_update = prev_ev + alpha * (feedback - prev_ev)} #Here we are only indicating that we want values for the same hand during all trials, which means that our ev_update only updates expected values for hand 1 since the expected values for the hands are orthogonal 
+  else (ev_update = 1 - (prev_ev + alpha * (feedback - prev_ev)))
+
+  #Implemtenting softmax (theta set to 1)
+  probability = exp(ev_update)/(exp(ev_update)+ exp(1-ev_update)) #1-ev_update means that we are summing from both "hands"
+  
+  choice = rbinom(1, 1, probability)
+  
+  outcome = c(choice, ev_update)
+  
+  return(outcome)
+}
+
+#Trying the function
+#try <- ev(1, 1, 0.3, 0.51)
+
+
+#Players choices 
+Self <- rep(NA, trials)
+Other <- rep(NA, trials)
+
+#Other lists to populate
+ev_list <- rep(NA, trials)
+feedback_list <- rep(NA, trials)
+
+Self[1] <- rbinom(1, 1, 0.5) #Randomizing first choice for self 
+
+Other[1] <- rbinom(1, 1, 0.5) 
+
+ev_list[1] <- 0.5
+
+#Setting learning rate 
+alpha = 0.3 #We try learning rates (0.3, 0.5, 1)
+
+for (t in 2:trials){
+  
+  # get feedback
+  if (Self[t-1] == Other[t-1]){ Feedback = 1} 
+  else {Feedback = 0}
+  
+  outcome <- ev(Self[t-1], Feedback, alpha, ev_list[t-1])
+  
+  # register feedback
+  feedback_list[t] <- Feedback
+  
+  #Register choices
+  Self[t] <- outcome[1]
+  
+  #Register expected value
+  ev_list[t] <- outcome[2]
+  
+  Other[t] <- RandomAgent_f(trials, rate)
+}
+
+df_RLvsRandom <- tibble(Self, Other, trial = seq(trials), feedback_list)
 ```
 
 ```{r plotting for RL model}
@@ -167,34 +237,148 @@ d3
 
 Playing against eachother
 ```{r RL against asymWSLS}
+
+#Players choices 
+Self <- rep(NA, trials)
+Other <- rep(NA, trials)
+
+#Other lists to populate
+ev_list <- rep(NA, trials)
+feedbackRL_list <- rep(NA, trials)
+
+Self[1] <- rbinom(1, 1, 0.5) #Randomizing first choice for self 
+
+Other[1] <- rbinom(1, 1, 0.5) 
+
+ev_list[1] <- 0.5
+
+#Setting learning rate 
+alpha = 1 #We try learning rates (0.3, 0.5, 1)
+
 for (t in 2:trials){
   
-  for (d in 1:2){
-    ifelse(d==1, 
-      if (Self[t - 1] == Other[t - 1]) {
-      feedback = 1
-      } else {feedback = 0}, if (Self[t - 1] == Other[t - 1]) {
-      feedback = 0
-      } else {feedback = 1})
-    
+  # get feedback
+  if (Self[t-1] == Other[t-1]){ Feedback = 1} 
+  else {Feedback = 0}
   
-    ev_df[t,d] <- ev(feedback, alpha, ev_df[t-1,d])
-  }
-  for (d in 1:2){
-    probability[t,d] = exp(ev_df[t,d])/(exp(ev_df[t,1])+ exp(ev_df[t,2]))
-  }
-    
-  Self[t] <- rbinom(1, 1, probability[t,])
-  
-    # get feedback
-  if (Self[t-1] == Other[t-1]){
-    Feedback = 1
-  } else {Feedback = 0}
+  outcome <- ev(Self[t-1], Feedback, alpha, ev_list[t-1])
   
   # register feedback
-  Feedback2[t] <- Feedback
+  feedbackRL_list[t] <- Feedback
   
-  Other[t] <- AsymWSLSAgent_f(Other[t - 1], Feedback2)
+  #Register choices
+  Self[t] <- outcome[1]
+  
+  #Register expected value
+  ev_list[t] <- outcome[2]
+  
+  #Opposite feedback for other 
+  if (Self[t-1] == Other[t-1]){ Feedback2 = 0} 
+  else {Feedback2 = 1}
+  
+  Other[t] <- AsymWSLSAgent_f(Other[t - 1], Feedback2, 0.9, 0.7)
 }
+
+d.1 <- tibble(Self,
+             Other,
+             trial = seq(trials),
+             FeedbackRL = as.numeric(Self == Other)) %>% mutate(
+               cumulativerateSelf = cumsum(d.3$FeedbackRL) / seq_along(d.3$FeedbackRL), 
+               cumulativerateOther = cumsum(1 - d.3$FeedbackRL) / seq_along(d.3$FeedbackRL)
+             )
+```
+
+```{r}
+#plotting
+d3 <- tibble(Self, Other, trial = seq(trials),Feedback = as.numeric(Self == Other))
+ggplot(d.3) + theme_classic() +
+  geom_line(color = "red", aes(trial, Self)) +
+  geom_line(color = "blue", aes(trial, Other))
+
+d.3$cumulativerateSelf <- cumsum(d.3$FeedbackRL) / seq_along(d.3$FeedbackRL)
+d.3$cumulativerateOther <- cumsum(1 - d.3$FeedbackRL) / seq_along(d.3$FeedbackRL)
+
+ggplot(d.1) + theme_minimal() +
+  geom_line(aes(trial, cumulativerateSelf), color = "darkred") +
+  geom_line(aes(trial, cumulativerateOther), color = "darkolivegreen4")
+  
+```
+
+Scaling up with different learning rates 
+```{r}
+trials = 120
+agents = 100
+
+df1 <- data.frame()
+
+# WSLS vs agents with varying rates
+
+for (alpha in seq(from = 0.1, to = 1, by = 0.1)) {
+  
+  for (agent in seq(agents)) {
+      #Players choices 
+    Self <- rep(NA, trials)
+    Other <- rep(NA, trials)
+    
+    #Other lists to populate
+    ev_list <- rep(NA, trials)
+    feedback_list <- rep(NA, trials)
+    
+    Self[1] <- rbinom(1, 1, 0.5) #Randomizing first choice for self 
+    
+    Other[1] <- rbinom(1, 1, 0.5) 
+    
+    ev_list[1] <- 0.5 
+      
+    
+    for (t in 2:trials){
+    
+      #get feedback
+      if (Self[t-1] == Other[t-1]){ Feedback = 1} 
+      else {Feedback = 0}
+      
+      outcome <- ev(Self[t-1], Feedback, alpha, ev_list[t-1])
+      
+      # register feedback
+      feedback_list[t] <- Feedback
+      
+      #Register choices
+      Self[t] <- outcome[1]
+      
+      #Register expected value
+      ev_list[t] <- outcome[2]
+      
+      #Opposite feedback for other 
+      if (Self[t-1] == Other[t-1]){ Feedback2 = 0} 
+      else {Feedback2 = 1}
+      
+      Other[t] <- AsymWSLSAgent_f(Other[t - 1], Feedback2, 0.9, 0.7)
+    }
+    
+  }  
+    
+    temp <- tibble(Self, Other, trial = seq(trials), feedback_list, agent, alpha)
+    
+    if (agent == 1 ) {df1 <- temp} else {df1 <- bind_rows(df1, temp)}
+}
+```
+
+```{r}
+df1 %>% mutate(alpha = as.character(alpha)) %>% ggplot(aes(trial, feedback_list, group = alpha, color = alpha)) +
+  geom_smooth(se = F) + theme_classic()
+
+df1 %>% mutate(alpha = as.character(alpha)) %>% ggplot(aes(trial, Feedback_WSLS, group = alpha, color = alpha)) +
+  geom_smooth(se = F) + theme_classic()
+```
+
+
+```{r}
+d2 <- data.frame()
+d2$cumulativerateRL <- cumsum(df1$Feedback_RL) / seq_along(df1$Feedback_RL)
+d2$cumulativerateWSLS <- cumsum(1-df1$Feedback_RL) / seq_along(df1$Feedback_RL)
+
+ggplot(d1) + theme_classic() +
+  geom_line(color = "red", aes(trial, cumulativerateSelf)) +
+  geom_line(color = "blue", aes(trial, cumulativerateOther))
 ```
 
